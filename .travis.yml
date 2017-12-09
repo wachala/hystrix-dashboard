@@ -1,0 +1,36 @@
+sudo: required
+
+cache:
+  directories:
+  - .autoconf
+  - $HOME/.m2
+
+services:
+  - docker
+
+branches:
+  only:
+    - travis
+
+notifications:
+  email: false
+  slack:
+    secure: JCdE38ivi+rpgw0JTf3TDRDfwjn+fxFpUKExkYuQhzTv8kAD9IdeDfKjiLUBePX3CRd70eh85B8+9rVNJGu+3+mlZeCD7UwBtwHfukmKW1XZDY/Z/yopudGKAB4zgJMGYrlyQ3kPTb7tRCmTTqy8Dfl8RbR6NS9tXP5ERjugghsRZAvmT6LUK7zKFN1ctlyqOxg3oLFJyYlJXSBQpDYzoUhMTaZcepkaA3hSI7Zy/CVhk2irBpyL/qDM+qweB5B/74ptljPtvsuDPBkO8HSV78bDpZCvT+aZIltDdFxOfqTQEIyukPP2cDrrgRJfvV9CE7M8iSHtJC1vfVqd2BQ+PFJuU05Rclnauf4NcG2zlrOWtoQdUF1iWjKYolOxDrTT8uKR+PJGnExqMfzYpxZLz+B9kG8zlO4+c36Ix6x3I25bBscHfzS/Y+dGKxa1LC36UDIzn9cPoNfSWYSLG37MubNmIk5rxUrMUf6z6QeHKpTny9mUJzcofhyZHH/kE136oNkAlIC8SPeX3VpdRJkfX8Bmt22uXD6zVBRjH8ERVVE4gFnH928hopA1KMUeP/yxpK643DkCKYVsUJcR++ujpBcc9lnNzo7M4peL68P2OOYnM8vHF4tXnf3Qv6gRpzUSYIM/B8PFA6uDFLlz2GOqRHSt7+N8gceCRhNDmogMjqc=
+
+before_install:
+  - docker build -t builder_image -f docker/Dockerfile.buidler .
+  - docker run -it --rm -v $(pwd):/microservice -v $HOME/.m2:/root/.m2 builder_image
+  - docker build -t dist_image -f docker/Dockerfile.dist .
+  - docker build -t test_image -f docker/Dockerfile.test .
+
+script:
+  - docker run -it -v $HOME/.m2:/root/.m2 --name test test_image
+  - docker run -d --name dist dist_image
+  - docker ps | grep -q dist
+
+after_success:
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+    docker tag dist_image patrykks/iosr-hystrix-dashboard;
+    docker push patrykks/iosr-hystrix-dashboard;
+    fi
